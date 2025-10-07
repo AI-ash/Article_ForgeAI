@@ -23,7 +23,8 @@ const formatMarkdown = (content: string) => {
                 .replace(/#{1}\s*(.*?)\s*$/gm, '<h1>$1</h1>'); // H1
 };
 
-serve(async (req: Request) => {
+// 🧭 Dynamic project route handler
+const handleRequest = async (req: Request, project?: string) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -87,8 +88,10 @@ serve(async (req: Request) => {
       .filter(topic => topic.trim() !== "")
       .map(topic => topic.replace(/^\d+\.\s*/, '').trim());
 
+    // 🧾 Response (includes project name if provided)
     return new Response(
       JSON.stringify({
+        project: project || "default",
         content: articleContent,
         suggestedTopics: suggestedTopics,
       }),
@@ -107,4 +110,25 @@ serve(async (req: Request) => {
       }
     );
   }
+};
+
+// 🚀 Serve with dynamic routing
+serve(async (req: Request) => {
+  const url = new URL(req.url);
+  const path = url.pathname;
+
+  // Match routes like /api/article or /api/{project}/article
+  const projectMatch = path.match(/^\/api\/([^/]+)\/article$/);
+
+  if (path === "/api/article") {
+    return await handleRequest(req);
+  } else if (projectMatch) {
+    const project = projectMatch[1];
+    return await handleRequest(req, project);
+  }
+
+  return new Response("Not Found", {
+    status: 404,
+    headers: corsHeaders,
+  });
 });
