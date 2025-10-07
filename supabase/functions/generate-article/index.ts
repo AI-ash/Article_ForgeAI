@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Groq from "https://esm.sh/groq-sdk";
 
+// Define the CORS headers for your Vercel app
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://article-forge-ai.vercel.app",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -13,18 +14,22 @@ interface ArticleRequest {
   previousBlog?: string;
 }
 
-const formatMarkdown = (content: string) => {
-  return content.replace(/\n/g, '\n\n')  // Double line breaks for paragraphs
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')  // Links
-                .replace(/#{3}\s*(.*?)\s*$/gm, '<h3>$1</h3>')  // H3
-                .replace(/#{2}\s*(.*?)\s*$/gm, '<h2>$1</h2>')  // H2
-                .replace(/#{1}\s*(.*?)\s*$/gm, '<h1>$1</h1>'); // H1
-};
+// This is our new, detailed style guide for the AI.
+const systemPrompt = `
+You are an expert content creator and web designer. Your task is to generate a visually appealing, well-structured, and SEO-optimized article.
 
-// 🧭 Dynamic project route handler
-const handleRequest = async (req: Request, project?: string) => {
+**Output Requirements:**
+- The entire output must be a single block of clean HTML, ready to be inserted into a div.
+- Style the HTML exclusively with Tailwind CSS classes that match a modern, dark-themed website aesthetic.
+- Use colors like 'text-white', 'text-gray-300', 'text-cyan-400', and 'text-blue-400'. Use backgrounds like 'bg-gray-800' or 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10'.
+- Structure the article with a main title (h1), an author byline, and logical sections using h2 and h3 tags.
+- Use Tailwind's typography classes (e.g., 'text-4xl', 'font-bold', 'leading-relaxed', 'mb-4').
+- Incorporate engaging elements like styled lists ('ul'/'ol') and at least one visually distinct blockquote to highlight a key point (e.g., using 'border-l-4 border-cyan-500 p-6').
+- The tone must be engaging, authoritative, and human-like.
+`;
+
+serve(async (req: Request) => {
+  // Handle the OPTIONS preflight request
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -35,100 +40,67 @@ const handleRequest = async (req: Request, project?: string) => {
     if (!topic || !creatorName) {
       return new Response(
         JSON.stringify({ error: "Topic and creator name are required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const groq = new Groq({
-      apiKey: Deno.env.get("GROQ_API_KEY"),
-    });
+    const groq = new Groq({ apiKey: Deno.env.get("GROQ_API_KEY") });
 
     const stylePrompt = previousBlog
-      ? `Analyze the following blog content and adopt its writing style, tone, and formatting for the new article. Previous blog content: "${previousBlog}"`
-      : "Write in a clear, engaging, and informative style.";
+      ? `Critically analyze the following blog content and perfectly adopt its writing style, tone, and formatting for the new article. Previous blog content for style matching: "${previousBlog}"`
+      : "Write in a clear, engaging, and informative style suitable for a tech-savvy audience.";
+
+    const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     // Generate the main article content
     const articleCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an expert content writer who specializes in creating high-quality, SEO-optimized articles. Use Markdown formatting for structure and emphasis. Use ## for headings, * for emphasis, ** for strong emphasis, and proper link formatting [text](url).",
+          content: systemPrompt, // Using the new detailed prompt
         },
         {
           role: "user",
-          content: `Generate a comprehensive and well-structured article on the topic: "${topic}". The author's name is ${creatorName}. ${stylePrompt}`,
+          content: `Generate a comprehensive article on the topic: "${topic}". The author is ${creatorName}, and the publication date is ${date}. ${stylePrompt}`,
         },
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "llama-3.3-70b-versatile",
     });
 
-    const articleContent = formatMarkdown(articleCompletion.choices[0]?.message?.content || "");
+    const articleContent = articleCompletion.choices[0]?.message?.content || "";
 
     // Generate suggested topics
     const suggestedTopicsCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that generates related blog post topics. Provide a numbered list of 5 suggestions.",
+          content: "You are a helpful assistant. Based on an article topic, suggest 5 creative and relevant titles for future blog posts.",
         },
         {
           role: "user",
-          content: `Based on the article topic "${topic}", suggest 5 engaging and relevant titles for future blog posts.`,
+          content: `Based on the article topic "${topic}", suggest 5 titles.`,
         },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
     });
 
     const suggestedTopicsText = suggestedTopicsCompletion.choices[0]?.message?.content || "";
     const suggestedTopics = suggestedTopicsText
       .split("\n")
-      .filter(topic => topic.trim() !== "")
-      .map(topic => topic.replace(/^\d+\.\s*/, '').trim());
+      .filter(t => t.trim() !== "")
+      .map(t => t.replace(/^\d+\.\s*/, '').trim());
 
-    // 🧾 Response (includes project name if provided)
+    // Send the successful response
     return new Response(
-      JSON.stringify({
-        project: project || "default",
-        content: articleContent,
-        suggestedTopics: suggestedTopics,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ content: articleContent, suggestedTopics }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error("Error generating article:", error);
     return new Response(
       JSON.stringify({ error: "Failed to generate article" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-};
-
-// 🚀 Serve with dynamic routing
-serve(async (req: Request) => {
-  const url = new URL(req.url);
-  const path = url.pathname;
-
-  // Match routes like /api/article or /api/{project}/article
-  const projectMatch = path.match(/^\/api\/([^/]+)\/article$/);
-
-  if (path === "/api/article") {
-    return await handleRequest(req);
-  } else if (projectMatch) {
-    const project = projectMatch[1];
-    return await handleRequest(req, project);
-  }
-
-  return new Response("Not Found", {
-    status: 404,
-    headers: corsHeaders,
-  });
 });
