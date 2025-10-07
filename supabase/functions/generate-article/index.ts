@@ -62,7 +62,7 @@ const handleRequest = async (req: Request, project?: string) => {
           content: `Generate a comprehensive and well-structured article on the topic: "${topic}". The author's name is ${creatorName}. ${stylePrompt}`,
         },
       ],
-      model: "mixtral-8x7b-32768",
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
     });
 
     const articleContent = formatMarkdown(articleCompletion.choices[0]?.message?.content || "");
@@ -79,7 +79,7 @@ const handleRequest = async (req: Request, project?: string) => {
           content: `Based on the article topic "${topic}", suggest 5 engaging and relevant titles for future blog posts.`,
         },
       ],
-      model: "llama3-8b-8192",
+      model: "llama-3.3-70b-versatile",
     });
 
     const suggestedTopicsText = suggestedTopicsCompletion.choices[0]?.message?.content || "";
