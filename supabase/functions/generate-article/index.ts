@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Groq from "https://deno.land/x/groq_sdk/mod.ts";
+import Groq from "https://esm.sh/groq-sdk";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +12,16 @@ interface ArticleRequest {
   creatorName: string;
   previousBlog?: string;
 }
+
+const formatMarkdown = (content: string) => {
+  return content.replace(/\n/g, '\n\n')  // Double line breaks for paragraphs
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')  // Links
+                .replace(/#{3}\s*(.*?)\s*$/gm, '<h3>$1</h3>')  // H3
+                .replace(/#{2}\s*(.*?)\s*$/gm, '<h2>$1</h2>')  // H2
+                .replace(/#{1}\s*(.*?)\s*$/gm, '<h1>$1</h1>'); // H1
+};
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -44,18 +54,17 @@ serve(async (req: Request) => {
       messages: [
         {
           role: "system",
-          content:
-            "You are an expert content writer who specializes in creating high-quality, SEO-optimized articles. Your responses should be in HTML format, ready to be displayed on a webpage.",
+          content: "You are an expert content writer who specializes in creating high-quality, SEO-optimized articles. Use Markdown formatting for structure and emphasis. Use ## for headings, * for emphasis, ** for strong emphasis, and proper link formatting [text](url).",
         },
         {
           role: "user",
           content: `Generate a comprehensive and well-structured article on the topic: "${topic}". The author's name is ${creatorName}. ${stylePrompt}`,
         },
       ],
-      model: "llama3-8b-8192", // Or another model like "mixtral-8x7b-32768"
+      model: "mixtral-8x7b-32768",
     });
 
-    const articleContent = articleCompletion.choices[0]?.message?.content || "";
+    const articleContent = formatMarkdown(articleCompletion.choices[0]?.message?.content || "");
 
     // Generate suggested topics
     const suggestedTopicsCompletion = await groq.chat.completions.create({
