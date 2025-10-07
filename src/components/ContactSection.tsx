@@ -34,7 +34,7 @@ export default function ContactSection() {
           </a>
 
           <a
-            href="https://linkedin.com"
+            href="https://linkedin.com/ashish-sharma-ai"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-6 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg font-medium transition-all transform hover:scale-105"
