@@ -3,7 +3,7 @@ import Groq from "https://esm.sh/groq-sdk";
 
 // Define the CORS headers for your Vercel app
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://article-forge-ai.vercel.app",
+  "Access-Control-Allow-Origin": "https://forge-ai-article.vercel.app",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
